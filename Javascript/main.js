@@ -44,10 +44,7 @@ let username = "New Player";
 
 let structurePlacing = "";
 
-let newsStrings = {
-  newPlayer: "Welcome new player! Click this to choose your name!",
-  welcomeBack: "Welcome back!",
-};
+let newsStrings = {};
 
 let newsString = "";
 let hoverInformationString = "";
@@ -130,93 +127,6 @@ let Structures = [
     ],
   },
 ];
-
-function NewPlayer() {
-  // Get the username
-  username = prompt("Enter your username:");
-
-  // Remove news event listener
-  newsContainer.removeEventListener("click", NewPlayer);
-
-  // Save the username
-  Save();
-}
-
-function EncodeSave() {
-  // Encode the save
-  const save = {
-    money: money,
-    energy: energy,
-    materials: materials,
-    workers: workers,
-    production: production,
-    consumption: consumption,
-    storage: storage,
-    newsString: newsString,
-    hoverInformationString: hoverInformationString,
-    Resources: Resources,
-    Structures: Structures,
-    Username: username,
-  };
-
-  // Return the save
-  return save;
-}
-
-function DecodeSave(save) {
-  // Decode the save
-  money = save.money;
-  energy = save.energy;
-  materials = save.materials;
-  workers = save.workers;
-  production = save.production;
-  consumption = save.consumption;
-  storage = save.storage;
-  newsString = save.newsString;
-  hoverInformationString = save.hoverInformationString;
-  // Compare the resources and structures arrays to the save and check if there are any new resources or structures that need to be added to the save
-  for (let i = 0; i < save.Resources.length; i++) {
-    const resource = save.Resources[i];
-    const existingResource = Resources.find((r) => r.name === resource.name);
-
-    if (existingResource) {
-      existingResource.amount = resource.amount;
-    }
-  }
-  username = save.Username;
-}
-
-function Save() {
-  // Save the game
-  localStorage.setItem("save", JSON.stringify(EncodeSave()));
-}
-
-function Load() {
-  // Load the game
-  const save = JSON.parse(localStorage.getItem("save"));
-  DecodeSave(save);
-
-  // Set the news string to welcome back message
-  newsString = newsStrings.welcomeBack + " " + username;
-}
-
-function CheckSave() {
-  // Check if there is a save
-  if (localStorage.getItem("save") !== null) {
-    // Load the save
-    Load();
-    saveLoaded = true;
-    if (debugMode) console.log("Save Loaded");
-  } else {
-    // Set news string to new player
-    newsString = newsStrings.newPlayer;
-    newsContainer.addEventListener("click", function () {
-      NewPlayer();
-    });
-    saveLoaded = false;
-    if (debugMode) console.log("No Save Found");
-  }
-}
 
 function AddTabEventListeners() {
   // Add Event Listeners to Tabs
@@ -608,7 +518,6 @@ function switchPage(page) {
 function Update() {
   ProductionLoop();
   UpdateUIElements();
-  if (saveLoaded) Save();
 }
 
 function QuickUpdate() {
