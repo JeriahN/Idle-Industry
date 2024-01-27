@@ -105,8 +105,11 @@ let Structures = [
                 amount: 4,
               },
             ],
+            consumption: [],
+            unlocked: false,
           },
         ],
+        unlocked: true,
         icon: `<svg xmlns="http://www.w3.org/2000/svg"
 	 width="800px" height="800px" viewBox="0 0 64 64" fill="currentColor">
 <g>
@@ -163,38 +166,18 @@ function HoverInformation(hoverInformation) {
   hoverInformationString = hoverInformation;
 }
 
-function UpdateInventoryElements() {
-  // Loop through each resource
-  for (let i = 0; i < Resources.length; i++) {
-    // Get the resource
-    const resource = Resources[i];
+function CreateResourceElement(resource) {
+  // Create the resource element if it doesn't exist
+  const resourceElement = document.createElement("div");
 
-    // Find the existing resource element
-    const resourceElement = document.getElementById(resource.name);
+  // Set the resource element class
+  resourceElement.classList.add("resource");
 
-    if (resourceElement) {
-      // Update the resource element values
-      resourceElement.querySelector(
-        ".resourceAmount"
-      ).textContent = `Amount Owned: ${resource.amount}`;
-      resourceElement.querySelector(
-        ".resourceTitle"
-      ).textContent = `${resource.name}:`;
-      resourceElement.querySelector(".resourceTitle").textContent = `Storage: ${
-        resource.weight * resource.amount
-      }`;
-    } else {
-      // Create the resource element if it doesn't exist
-      const resourceElement = document.createElement("div");
+  // Set the resource element id
+  resourceElement.id = resource.name;
 
-      // Set the resource element class
-      resourceElement.classList.add("resource");
-
-      // Set the resource element id
-      resourceElement.id = resource.name;
-
-      // Set the resource element inner html
-      resourceElement.innerHTML = `
+  // Set the resource element inner html
+  resourceElement.innerHTML = `
         <div class="row">
           <div class="resourceTitle">${resource.name}:</div>
           <div class="resourceTitle">Storage: ${
@@ -227,15 +210,68 @@ function UpdateInventoryElements() {
           <button onclick="SellResources('${
             resource.name
           }', document.getElementById('${
-        resource.name
-      }SellAmount').value)">Sell</button>
+    resource.name
+  }SellAmount').value)">Sell</button>
         </div>
       `;
 
-      // Add the resource element to the inventory container
-      inventoryContainer.appendChild(resourceElement);
+  return resourceElement;
+}
+
+function UpdateInventoryElements() {
+  // Loop through each resource
+  for (let i = 0; i < Resources.length; i++) {
+    // Get the resource
+    const resource = Resources[i];
+
+    // Find the existing resource element
+    const resourceElement = document.getElementById(resource.name);
+
+    if (resourceElement) {
+      // Update the resource element values
+      resourceElement.querySelector(
+        ".resourceAmount"
+      ).textContent = `Amount Owned: ${resource.amount}`;
+      resourceElement.querySelector(
+        ".resourceTitle"
+      ).textContent = `${resource.name}:`;
+      resourceElement.querySelector(".resourceTitle").textContent = `Storage: ${
+        resource.weight * resource.amount
+      }`;
+    } else {
+      if (resource.amount > 0) {
+        // Create the resource element
+        const resourceElement = CreateResourceElement(resource);
+
+        // Add the resource element to the inventory container
+        inventoryContainer.appendChild(resourceElement);
+      } else {
+        // Remove the resource element from the inventory container
+        inventoryContainer.removeChild(resourceElement);
+      }
+
+      return;
     }
   }
+}
+
+function CreateStructureMenuElement(structure) {
+  // Create button element
+  const buttonElement = document.createElement("button");
+
+  // Set button text
+  buttonElement.textContent = structure;
+
+  // Set button class
+  buttonElement.classList.add("structureButton");
+  buttonElement.id = "structureButton" + structure;
+
+  // Add event listener to button
+  buttonElement.addEventListener("click", function () {
+    BuyStructure(structure);
+  });
+
+  return buttonElement;
 }
 
 function UpdateStructuresMenu() {
@@ -244,32 +280,28 @@ function UpdateStructuresMenu() {
     // Get the structure name
     const structureName = Object.keys(Structures[i])[0];
 
-    // Get the structure data
-    const structure = Structures[i][structureName][0];
+    // Check if the structure is unlocked
+    if (Structures[i][structureName][0].unlocked) {
+      // Check if the structure button already exists
+      const structureButton = document.getElementById(
+        "structureButton" + structureName
+      );
 
-    // Create button element
-    const buttonElement = document.createElement("button");
+      if (!structureButton) {
+        // Create the structure button
+        const structureButton = CreateStructureMenuElement(structureName);
 
-    // Set button text
-    buttonElement.textContent = structureName;
-
-    // Set button class
-    buttonElement.classList.add("structureButton");
-
-    // Add event listener to button
-    buttonElement.addEventListener("click", function () {
-      BuyStructure(structureName);
-    });
-
-    // Add button to structures container
-    structuresMenu.appendChild(buttonElement);
+        // Add the structure button to the structures menu
+        structuresMenu.appendChild(structureButton);
+      }
+    }
   }
 }
 
 // Place structure given structure name, an x position and a y position
 function PlaceStructure(structureName, x, y) {
   // Get the structure data
-  const structure = Structures.find((s) => s[structureName]);
+  const structure = FindStructure(structureName);
 
   // Create image element
   const structureElement = document.createElement("div");
@@ -301,9 +333,41 @@ function PlaceStructure(structureName, x, y) {
   structuresContainer.appendChild(structureElement);
 }
 
+function FindStructure(structureName) {
+  return Structures.find((s) => s[structureName]);
+}
+
+function UnlockStructure(structureName) {
+  // Get the structure data
+  const structure = FindStructure(structureName);
+
+  // Unlock the structure
+  structure[structureName][0].unlocked = true;
+
+  // Update the structures menu
+  UpdateStructuresMenu();
+}
+
+function LockStructure(structureName) {
+  // Get the structure data
+  const structure = FindStructure(structureName);
+
+  // Lock the structure
+  structure[structureName][0].unlocked = false;
+
+  // Remove the structure from the structures container
+  const structureElement = document.getElementById(structureName);
+  if (structureElement) {
+    structuresContainer.removeChild(structureElement);
+  }
+
+  // Update the structures menu
+  UpdateStructuresMenu();
+}
+
 function BuyStructure(structureName) {
   // Get the structure data
-  const structure = Structures.find((s) => s[structureName]);
+  const structure = FindStructure(structureName);
 
   // Get the structure price
   const structurePrice = structure[structureName][0].price;
@@ -324,7 +388,7 @@ function BuyStructure(structureName) {
   }
 }
 
-function placeStructureEventHandler(event) {
+function placeStructureEventHandler() {
   // Place the structure
   PlaceStructure(structurePlacing, mouseX, mouseY);
 
@@ -523,6 +587,7 @@ function Update() {
 function QuickUpdate() {
   StructurePlacementManager();
   UpdateInventoryElements();
+  UpdateStructuresMenu();
   UpdateUIElements();
 }
 
