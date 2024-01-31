@@ -15,9 +15,6 @@ const structuresContainer = document.getElementById("structures");
 // Stores Structure Buy/Sell Buttons and Objects
 const marketContainer = document.getElementById("market");
 
-// Buy/Upgrade/Sell Structures Menu
-const structuresMenu = document.getElementById("structuresMenu");
-
 // Stores Resource Information
 const inventoryContainer = document.getElementById("inventory");
 
@@ -32,6 +29,10 @@ const structuresTab = document.getElementById("structuresTab");
 const marketTab = document.getElementById("marketTab");
 const inventoryTab = document.getElementById("inventoryTab");
 
+// Menus
+const structuresMenu = document.getElementById("structuresMenu");
+const upgradeMenu = document.getElementById("upgradesMenu");
+
 // Variables
 let money = 200;
 let energy = 0;
@@ -42,7 +43,13 @@ let consumption = 0;
 let storage = 1000;
 let username = "New Player";
 
+let storageRemaining = storage;
+let storageFull = false;
+let totalResourceAmount = 0;
+let totalWeight = 0;
+
 let structurePlacing = "";
+let selectedStructure = "";
 
 let newsStrings = {};
 
@@ -106,7 +113,7 @@ let Structures = [
               },
             ],
             consumption: [],
-            unlocked: false,
+            unlocked: true,
           },
         ],
         unlocked: true,
@@ -131,9 +138,22 @@ let Structures = [
   },
 ];
 
+// Array to store all of the placed structures with their unique IDs, positions, upgrades, etc.
+let StructureElements = [];
+
+// Set Current Unique ID
+function SetCurrentUniqueID() {
+  // Set the current unique ID to the last structure element in the structure elements object
+  const currentUniqueID = Object.keys(StructureElements).length;
+  return currentUniqueID;
+}
+
+let currentUniqueID = SetCurrentUniqueID();
+
 function AddTabEventListeners() {
   // Add Event Listeners to Tabs
   structuresTab.addEventListener("click", () => {
+    switchMenu("structure");
     switchPage("structures");
   });
   marketTab.addEventListener("click", () => {
@@ -149,17 +169,31 @@ function addEventListeners() {
   document.addEventListener("mousemove", UpdateMousePositions);
 }
 
+function ColorAccentPrice() {
+  // Get the price of the item element of any element with the class price and get the price using the data-price attribute and set the color of the price to green if the player has enough money to buy the item and red if the player does not have enough money to buy the item
+  const priceElements = document.querySelectorAll(".price");
+  priceElements.forEach((priceElement) => {
+    const price = parseInt(priceElement.dataset.price);
+    if (money >= price) {
+      priceElement.style.color = "green";
+    } else {
+      priceElement.style.color = "red";
+    }
+  });
+}
+
 function UpdateUIElements() {
-  document.getElementById("money").innerHTML = money;
-  document.getElementById("energy").innerHTML = energy;
-  document.getElementById("materials").innerHTML = materials;
-  document.getElementById("workers").innerHTML = workers;
-  document.getElementById("production").innerHTML = production;
-  document.getElementById("consumption").innerHTML = consumption;
-  document.getElementById("storage").innerHTML = storage;
-  document.getElementById("news").innerHTML = newsString;
-  document.getElementById("hoverInformation").innerHTML =
+  document.getElementById("money").innerText = money;
+  document.getElementById("energy").innerText = energy;
+  document.getElementById("materials").innerText = materials;
+  document.getElementById("workers").innerText = workers;
+  document.getElementById("production").innerText = production;
+  document.getElementById("consumption").innerText = consumption;
+  document.getElementById("storage").innerText = totalWeight + "/" + storage;
+  document.getElementById("news").innerText = newsString;
+  document.getElementById("hoverInformation").innerText =
     hoverInformationString;
+  ColorAccentPrice();
 }
 
 function HoverInformation(hoverInformation) {
@@ -185,7 +219,9 @@ function CreateResourceElement(resource) {
           }</div>
           <div class="resourceDescription">Desc: ${resource.description}</div>
           <div class="resourceAmount">Amount Owned: ${resource.amount}</div>
-          <div class="resourcePrice">Price Per: ${resource.price}</div>
+          <div class="resourcePrice" data-price="${
+            resource.price
+          }">Price Per: ${resource.price}</div>
         </div>
         <div class="row">
           <button onclick="SellResources('${resource.name}', 1)">Sell 1</button>
@@ -298,21 +334,136 @@ function UpdateStructuresMenu() {
   }
 }
 
-// Place structure given structure name, an x position and a y position
-function PlaceStructure(structureName, x, y) {
+function UpdateStructuresElements() {
+  // Loop through the structureElements array
+  for (let i = 0; i < StructureElements.length; i++) {
+    // Get the structure name
+    const structureName = StructureElements[i].Structure;
+
+    // Get the structure data
+    const structure = StructureElements[i];
+
+    // Get the positions
+    const positions = structure.positions;
+
+    // Loop through each position
+    for (let j = 0; j < positions.length; j++) {
+      // Get the position
+      const position = positions[j];
+
+      // Get the x and y position
+      const x = position.x;
+      const y = position.y;
+
+      // Place the structure
+      PlaceStructure(structureName, x, y);
+    }
+  }
+}
+
+function CreateUpgradeElement(upgrades, i, structureSelectedID) {
+  // Create the upgrade element
+  const upgradeElement = document.createElement("div");
+
+  // Set the upgrade element class
+  upgradeElement.classList.add("upgrade");
+
+  // Set the upgrade element inner html
+  upgradeElement.innerHTML = `
+        <div class="row upgradeTitle">${upgrades[i].name}</div>
+        <div class="row upgradeDescription">${upgrades[i].description}</div>
+        <div class="row">
+          <div class="row upgradePrice price" data-price="${upgrades[i].price}">Price: ${upgrades[i].price}</div>
+          <button onclick="BuyUpgrade('${upgrades[i].name}', ${structureSelectedID})">Buy</button>
+        </div>
+      `;
+
+  return upgradeElement;
+}
+
+function BuyUpgrade(upgradeName, structureSelectedID) {
   // Get the structure data
-  const structure = FindStructure(structureName);
+  const structure =
+    Structures[0][StructureElements[structureSelectedID].Structure];
+
+  // Get the upgrade data
+  const upgrade = structure[0].upgrades.find((u) => u.name === upgradeName);
+
+  // Get the upgrade price
+  const upgradePrice = upgrade.price;
+
+  // Check if the player has enough money
+  if (money >= upgradePrice) {
+    // Subtract the upgrade price from the player's money
+    money -= upgradePrice;
+
+    // Add the upgrade to the unique structure
+    StructureElements[structureSelectedID].Upgrades.push(upgradeName);
+
+    // Update the UI elements
+    UpdateUIElements();
+  } else {
+    // Show a message that the player does not have enough money
+    alert("You do not have enough money to purchase this upgrade.");
+  }
+
+  ShowUpgradeMenu(structureSelectedID);
+}
+
+function ShowUpgradeMenu(structureSelectedID) {
+  // Get the structure element, use the structureSelectedID to get the array index and then show inside the upgrade menu (after first switching to the upgrade menu) the upgrades that the structure has, if the structure has no upgrades, show a message saying that all upgrades have been purchased, the upgrade should be linked to the structure data with the upgrade of the same name under the same structure
+  upgradeMenu.innerHTML = "";
+  switchMenu("upgrade");
+  // Get the selected structure
+  const selectedStructure = StructureElements[structureSelectedID];
+
+  // Get the structure name
+  const structureName = selectedStructure.Structure;
+
+  // Get the structure data
+  const structureData = FindStructure(structureName);
+
+  // Get the upgrades
+  const upgrades = structureData[structureName][0].upgrades;
+
+  // Loop through the upgrades
+  for (let i = 0; i < upgrades.length; i++) {
+    // Check if the upgrade is already purchased
+    if (!selectedStructure.Upgrades.includes(upgrades[i].name)) {
+      // Check if the upgrade is unlocked
+      if (upgrades[i].unlocked) {
+        // Create the upgrade element
+        const upgradeElement = CreateUpgradeElement(
+          upgrades,
+          i,
+          structureSelectedID
+        );
+
+        // Add the upgrade element to the upgrade menu
+        upgradeMenu.appendChild(upgradeElement);
+      }
+    }
+  }
+
+  // If there are no upgrades or all upgrades have been purchased, show a message
+  if (
+    upgrades.length === 0 ||
+    selectedStructure.Upgrades.length === upgrades.length
+  ) {
+    upgradeMenu.innerHTML = "All upgrades have been purchased.";
+  }
+}
+
+function PlaceStructure(structureName, x, y) {
+  const structure = returnStructureInfo(structureName, "structure");
 
   // Create image element
   const structureElement = document.createElement("div");
 
-  // Set image content to svg
-  structureElement.innerHTML = structure[structureName][0].icon;
+  structureElement.innerHTML = returnStructureInfo(structureName, "icon");
 
-  // If the structure has a color, set the color
-  if (structure[structureName][0].color) {
-    structureElement.querySelector("svg").style.fill =
-      structure[structureName][0].color;
+  if (structure.color) {
+    structureElement.querySelector("svg").style.fill = structure.color;
   }
 
   // Set image css position to absolute
@@ -329,6 +480,33 @@ function PlaceStructure(structureName, x, y) {
     HoverInformation(structureName);
   });
 
+  // Add structure to structure elements array
+  StructureElements[currentUniqueID] = {
+    Structure: structureName,
+    Position: [
+      {
+        x: x,
+        y: y,
+      },
+    ],
+    Upgrades: [],
+  };
+
+  // This is to identify the unique id of the structure
+  const structureUniqueID = currentUniqueID;
+
+  // This is to identify the structure element
+  structureElement.id = "structure" + structureUniqueID;
+
+  // Add event listener to show upgrade menu
+  structureElement.addEventListener("click", function () {
+    // Show upgrade menu
+    ShowUpgradeMenu(structureUniqueID);
+  });
+
+  // Increment the current unique ID
+  currentUniqueID++;
+
   // Add image to structure container
   structuresContainer.appendChild(structureElement);
 }
@@ -343,6 +521,22 @@ function UnlockStructure(structureName) {
 
   // Unlock the structure
   structure[structureName][0].unlocked = true;
+
+  // Update the structures menu
+  UpdateStructuresMenu();
+}
+
+function UnlockUpgrade(structureName, upgradeName) {
+  // Get the structure data
+  const structure = FindStructure(structureName);
+
+  // Get the upgrade data
+  const upgrade = structure[structureName][0].upgrades.find(
+    (u) => u.name === upgradeName
+  );
+
+  // Unlock the upgrade
+  upgrade.unlocked = true;
 
   // Update the structures menu
   UpdateStructuresMenu();
@@ -418,21 +612,21 @@ function StructurePlacementManager() {
 }
 
 function PlaceStructures() {
-  // Loop through the structures array
-  for (let i = 0; i < Structures.length; i++) {
-    // Get the first key which is the structure name
-    const structureName = Object.keys(Structures[i])[0];
-
+  // Loop through the StructureElements array
+  for (let i = 0; i < StructureElements.length; i++) {
     // Get the structure data
-    const structure = Structures[i][structureName][0];
+    const structure = StructureElements[i];
 
     // Get the positions
-    const positions = structure.positions;
+    const positions = structure.Position;
 
     // Loop through each position
     for (let j = 0; j < positions.length; j++) {
       // Get the position
       const position = positions[j];
+
+      // Get the structure name
+      const structureName = structure.name;
 
       // Get the x and y position
       const x = position.x;
@@ -491,8 +685,6 @@ function SellResources(resourceName, amount) {
 function UpdateResource(resourceName, amount) {
   const resource = Resources.find((r) => r.name === resourceName);
 
-  if (debugMode) console.log("Resource: ", resource);
-
   if (resource) {
     // Update amount
     resource.amount += amount;
@@ -510,39 +702,199 @@ function UpdateResource(resourceName, amount) {
   }
 }
 
-function ProductionLoop() {
+function CalculateStorage() {
+  let totalResources = CalculateTotalResources();
+  let usedStorage = 0;
+  let totalWeight = 0;
+
+  for (let i = 0; i < totalResources.length; i++) {
+    usedStorage += totalResources[i].amount * totalResources[i].weight;
+  }
+
+  let storageRemaining = storage - usedStorage;
+  let isStorageFull = storageRemaining <= 0;
+
+  for (let i = 0; i < totalResources.length; i++) {
+    totalWeight += totalResources[i].weight * totalResources[i].amount;
+  }
+
+  return {
+    storageRemaining,
+    totalWeight,
+    isStorageFull,
+  };
+}
+
+function CalculateTotalProduction() {
+  let totalProduction = 0;
+
   for (let i = 0; i < Structures.length; i++) {
-    // Get structure name
     const structureName = Object.keys(Structures[i])[0];
-
-    // Get structure data
     const structure = Structures[i][structureName][0];
-
     const production = structure.production;
 
     for (let j = 0; j < production.length; j++) {
       const p = production[j];
-      const resourceName = p.resourceName;
       const amount = p.amount * structure.amount;
 
-      if (debugMode) console.log("Producing, ", amount, " of: ", resourceName);
-
-      // Update resource
-      UpdateResource(resourceName, amount);
+      totalProduction += amount;
     }
+  }
 
-    // Get consumption data
+  return totalProduction;
+}
+
+function CalculateTotalConsumption() {
+  let totalConsumption = 0;
+
+  for (let i = 0; i < Structures.length; i++) {
+    const structureName = Object.keys(Structures[i])[0];
+    const structure = Structures[i][structureName][0];
     const consumption = structure.consumption;
 
-    // Loop through each consumption
     for (let j = 0; j < consumption.length; j++) {
       const c = consumption[j];
       const resourceName = Object.keys(c)[0];
-      const amount = c[resourceName];
+      const amount = c[resourceName] * structure.amount;
 
-      // Update resource
-      UpdateResource(resourceName, amount);
-      if (debugMode) console.log("Consuming: ", resourceName);
+      totalConsumption += amount;
+    }
+  }
+
+  return totalConsumption;
+}
+
+function CalculateTotalResources() {
+  let totalResources = [];
+
+  for (let i = 0; i < Resources.length; i++) {
+    const resourceName = Resources[i].name;
+    const amount = Resources[i].amount;
+    const price = Resources[i].price;
+    const weight = Resources[i].weight;
+
+    const resource = {
+      name: resourceName,
+      amount: amount,
+      price: price,
+      weight: weight,
+    };
+
+    totalResources.push(resource);
+  }
+
+  return totalResources;
+}
+
+function returnUpgradeProduction(structureName, upgradeName) {
+  const structure = FindStructure(structureName);
+  const upgrades = structure[structureName][0].upgrades;
+
+  // Loop through each upgrade and find the upgrade with the same name
+  const upgrade = upgrades.find((u) => u.name === upgradeName);
+
+  return upgrade.production;
+}
+
+function returnUpgradeConsumption(structureName, upgradeName) {
+  const structure = FindStructure(structureName);
+  const upgrade = structure[structureName][0].upgrades.find(
+    (u) => u.name === upgradeName
+  );
+
+  return upgrade.consumption;
+}
+
+function returnStructureInfo(structureName, informationRequesting) {
+  const structure = FindStructure(structureName)[structureName][0];
+  if (informationRequesting === "structure") {
+    return structure;
+  }
+  if (informationRequesting === "production") {
+    return structure.production;
+  }
+  if (informationRequesting === "consumption") {
+    return structure.consumption;
+  }
+  if (informationRequesting === "upgrades") {
+    return structure.upgrades;
+  }
+  if (informationRequesting === "price") {
+    return structure.price;
+  }
+  if (informationRequesting === "icon") {
+    return structure.icon;
+  }
+  if (informationRequesting === "unlocked") {
+    return structure.unlocked;
+  }
+  if (informationRequesting === "amount") {
+    return structure.amount;
+  }
+}
+
+function returnStructureElementInfo(uniqueStructureID, informationRequesting) {
+  const structure = StructureElements[uniqueStructureID];
+  if (informationRequesting === "structure") {
+    return structure;
+  }
+  if (informationRequesting === "positions") {
+    return structure.Position;
+  }
+  if (informationRequesting === "upgrades") {
+    return structure.Upgrades;
+  }
+}
+
+function ProductionLoop() {
+  // Loop through each structure element
+  for (let i = 0; i < StructureElements.length; i++) {
+    const structureElement = StructureElements[i];
+
+    if (structureElement) {
+      const structureName = structureElement.Structure;
+      const upgrades = structureElement.Upgrades;
+      const structureData = FindStructure(structureName);
+      const structureAmount = structureData[structureName][0].amount;
+
+      let structureProduction, structureConsumption;
+
+      // Check if there are any upgrades
+      if (upgrades.length > 0) {
+        const lastUpgrade = upgrades[upgrades.length - 1];
+        structureProduction = returnUpgradeProduction(
+          structureName,
+          lastUpgrade
+        );
+
+        structureConsumption = returnUpgradeConsumption(
+          structureName,
+          lastUpgrade
+        );
+      } else {
+        structureProduction = returnStructureInfo(structureName, "production");
+
+        structureConsumption = returnStructureInfo(
+          structureName,
+          "consumption"
+        );
+      }
+
+      for (let j = 0; j < structureProduction.length; j++) {
+        const production = structureProduction[j];
+        const resourceName = production.resourceName;
+        const amount = production.amount * structureAmount;
+
+        UpdateResource(resourceName, amount);
+      }
+
+      for (let j = 0; j < structureConsumption.length; j++) {
+        const consumption = structureConsumption[j];
+        const resourceName = Object.keys(consumption)[0];
+        const amount = consumption[resourceName] * structureElement.amount;
+
+        UpdateResource(resourceName, -amount);
+      }
     }
   }
 }
@@ -570,7 +922,6 @@ function CustomCursor(x, y) {
 
 function switchPage(page) {
   // Switch between structures, market and inventory
-  if (debugMode) console.log("Switching Page: ", page);
   structuresContainer.style.display = page === "structures" ? "flex" : "none";
   structuresTab.classList.toggle("selected", page === "structures");
   marketContainer.style.display = page === "market" ? "flex" : "none";
@@ -579,9 +930,48 @@ function switchPage(page) {
   inventoryTab.classList.toggle("selected", page === "inventory");
 }
 
+function switchMenu(page) {
+  // Switch menus between structures and upgrades
+  if (page === "upgrade") {
+    structuresMenu.style.display = "none";
+    upgradeMenu.style.display = "flex";
+  } else {
+    structuresMenu.style.display = "flex";
+    upgradeMenu.style.display = "none";
+  }
+}
+
+function manageStripes() {
+  // If the storage is full, add the warning class to the stats navbar
+  statsNavbar.classList.toggle("warning", storageFull);
+}
+
+function CalculateValues() {
+  // Calculate the total production and consumption
+  production = CalculateTotalProduction();
+  consumption = CalculateTotalConsumption();
+
+  // Calculate the storage remaining
+  const storageRemainingData = CalculateStorage();
+  storageRemaining = storageRemainingData.storageRemaining;
+  storageFull = storageRemainingData.isStorageFull;
+
+  // Calculate the total resource amount
+  totalResourceAmount = CalculateTotalResources();
+
+  // Calculate the total weight
+  totalWeight = storageRemainingData.totalWeight;
+
+  // Adjust storageFull based on total weight
+  const maxStorageWeight = 10000; // replace with your maximum storage weight
+  storageFull = totalWeight >= maxStorageWeight;
+}
+
 function Update() {
   ProductionLoop();
+  CalculateValues();
   UpdateUIElements();
+  manageStripes();
 }
 
 function QuickUpdate() {
